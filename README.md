@@ -18,3 +18,11 @@ npx hardhat run --network goerli .\scripts\deploy.js
 npx hardhat verify --constructor-args arguments.js --network goerli "contract address"
 npx hardhat run interaction.js
 ```
+
+Add .env file to the root directory
+```
+PRIVATE_KEY = "Private key"
+ACCOUNT_ADDRESS = "Account address"
+ETHERSCAN_API = "Etherscan.io API key"
+GOERLI_ALCHEMY_API = "Alchemy Goerli API key"
+```
