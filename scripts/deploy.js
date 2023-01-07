@@ -2,8 +2,9 @@ const hre = require("hardhat");
 require("dotenv").config();
 
 async function main() {
-  const raffle = await hre.ethers.getContractFactory("Raffle");
-  const raffleDeploy = await raffle.deploy(process.env.ACCOUNT_ADDRESS);
+  const raffle = await hre.ethers.getContractFactory("RaffleManager");
+  // const raffleDeploy = await raffle.deploy(process.env.ACCOUNT_ADDRESS);
+  const raffleDeploy = await raffle.deploy();
 
   await raffleDeploy.deployed();
 }

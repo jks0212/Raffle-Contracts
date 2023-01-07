@@ -1,18 +1,25 @@
 const ethers = require("ethers");
 require("dotenv").config();
 
-const provider = new ethers.providers.JsonRpcProvider(
-  process.env.GOERLI_ALCHEMY_API
-);
+const privateKey =
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+
+// const providerAddress = process.env.GOERLI_ALCHEMY_API;
+const providerAddress = "http://127.0.0.1:8545";
+
+const raffleManagerContractAddress =
+  "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";
+
+const provider = new ethers.providers.JsonRpcProvider(providerAddress);
 
 const fs = require("fs");
 const path = require("path");
 
-const getTheAbi = () => {
+const getRaffleManagerAbi = () => {
   try {
     const dir = path.resolve(
       __dirname,
-      "./artifacts/contracts/Raffle.sol/Raffle.json"
+      "./artifacts/contracts/RaffleManager.sol/RaffleManager.json"
     );
     const file = fs.readFileSync(dir, "utf8");
     const json = JSON.parse(file);
@@ -25,7 +32,35 @@ const getTheAbi = () => {
   }
 };
 
-const contractAddress = "0xC8d3F2eC8a3F1929d4F172c25fa4bFA62E4f5C3E";
-const contract = new ethers.Contract(contractAddress, getTheAbi(), provider);
+// const contract = new ethers.Contract(address, abi, provider);
+// const unsignedTx = await contract.populateTransaction.approve(spender, amount);
 
-contract.getListingFee().then(console.log);
+// const wallet = new ethers.Wallet("0xprivatekey");
+// const signedTx = await wallet.signTransaction(unsignedTx);
+
+// // at a later point in Time
+// await provider.submitTransaction(signedTx);
+
+const wallet = new ethers.Wallet(privateKey, provider);
+const contract = new ethers.Contract(
+  raffleManagerContractAddress,
+  getRaffleManagerAbi(),
+  wallet
+);
+
+contract.connect(wallet);
+
+contract.getRaffles().then(console.log);
+
+// contract.createRaffle(1, 2, 3, 4).then((a) => {
+//   a.wait().then((b) => {
+//     console.log(b.events);
+//   })
+// })
+
+// .then((a, b) => {
+//   console.log(a);
+//   console.log("------------");
+//   a.wait().then(console.log);
+// });
+
