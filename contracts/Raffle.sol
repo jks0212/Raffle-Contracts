@@ -2,7 +2,6 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
@@ -190,11 +189,14 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 
 contract Raffle is IERC721Receiver, ReentrancyGuard{
 
-  ERC721Enumerable private nft;
-  uint256 private expiredAt;
-  uint16 private ticketCap;
-  uint32 private ticketPrice;
-  uint8 private ticketPricePointer;
+  address public owner;
+  address public nftContract;
+  uint256 public nftTokenId;
+  uint256 public nftTokenType;
+  uint256 public expiredAt;
+  uint16 public ticketCap;
+  uint32 public ticketPrice;
+  uint8 public ticketPricePointer;
 
   // address payable private seller;
   // address payable private owner;
@@ -204,21 +206,26 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
   struct Purchase {
     address purchaser;
     uint timestamp;
-    uint tickets;
+    uint16 tickets;
   }
 
   Purchase[] private purchases;
 
 // payable nonReentrant
   constructor (
-    // ERC721Enumerable _nft, 
-    // uint256 tokenId, 
-    uint256 _expiredAt, 
-    uint16 _ticketCap, 
+    address _owner,
+    address _nftContract,
+    uint256 _nftTokenId,
+    uint256 _nftTokenType,
+    uint256 _expiredAt,
+    uint16 _ticketCap,
     uint32 _ticketPrice,
     uint8 _ticketPricePointer
   ) {
-    // nft = _nft;
+    owner = _owner;
+    nftContract = _nftContract;
+    nftTokenId = _nftTokenId;
+    nftTokenType = _nftTokenType;
     expiredAt = _expiredAt;
     ticketCap = _ticketCap;
     ticketPrice = _ticketPrice;
@@ -226,21 +233,41 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
 
     // // 컨트랙트에 해당 NFT 전송
     // nft.transferFrom(msg.sender, address(this), tokenId);
-    
-    // // Listing이 되면 event emit
-    // // emit NFTRaffleCreated(itemId, tokenId, msg.sender, address(this), price, false, expiredAt);
   }
 
-  function getExpiredAt() external view returns(uint) {
-    return expiredAt;
-  }
+  function getRaffle() public view returns(
+    address, 
+    address, 
+    uint256, 
+    uint256, 
+    uint256, 
+    uint16, 
+    uint32, 
+    uint8
+  ) {
 
-  function getRaffle() public view returns(uint, uint, uint) {
-    return(expiredAt, ticketCap, ticketPrice);
+    return(
+      owner, 
+      nftContract, 
+      nftTokenId, 
+      nftTokenType, 
+      expiredAt, 
+      ticketCap, 
+      ticketPrice, 
+      ticketPricePointer
+    );
   }
 
   function getPurchases() public view returns(Purchase[] memory) {
     return purchases;
+  }
+
+  function getSoldTicketsNum() external view returns(uint16) {
+    uint16 total = 0;
+    for(uint i=0; i<purchases.length; i++) {
+      total += purchases[i].tickets;
+    }
+    return total;
   }
 
   // event NFTRaffleCreated (
@@ -315,7 +342,7 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
   }
 
   // 이더 전송 처리 부분 필요
-  function purchaseTickets(address purchaser, uint timestamp, uint tickets) public {
+  function purchaseTickets(address purchaser, uint timestamp, uint16 tickets) public {
     uint currentTicketCap = 0;
     for(uint i=0; i<purchases.length; i++) {
       currentTicketCap += purchases[i].tickets;

@@ -1,14 +1,16 @@
 const ethers = require("ethers");
+const web3 = require("web3");
 require("dotenv").config();
 
-const privateKey =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+// const privateKey =
+//   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const privateKey = process.env.PRIVATE_KEY;
 
-// const providerAddress = process.env.GOERLI_ALCHEMY_API;
-const providerAddress = "http://127.0.0.1:8545";
+const providerAddress = process.env.GOERLI_ALCHEMY_API;
+// const providerAddress = "http://127.0.0.1:8545";
 
 const raffleManagerContractAddress =
-  "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";
+  "0x583603619088aFfAeE755aF2B5E208af0Ede7914";
 
 const provider = new ethers.providers.JsonRpcProvider(providerAddress);
 
@@ -32,15 +34,6 @@ const getRaffleManagerAbi = () => {
   }
 };
 
-// const contract = new ethers.Contract(address, abi, provider);
-// const unsignedTx = await contract.populateTransaction.approve(spender, amount);
-
-// const wallet = new ethers.Wallet("0xprivatekey");
-// const signedTx = await wallet.signTransaction(unsignedTx);
-
-// // at a later point in Time
-// await provider.submitTransaction(signedTx);
-
 const wallet = new ethers.Wallet(privateKey, provider);
 const contract = new ethers.Contract(
   raffleManagerContractAddress,
@@ -50,7 +43,10 @@ const contract = new ethers.Contract(
 
 contract.connect(wallet);
 
-contract.getRaffles().then(console.log);
+// contract.getRafflesByIndex(0, 10).then(console.log);
+// const r = contract.getRafflesByIndex(0, 10).json();
+
+// console.log(r);
 
 // contract.createRaffle(1, 2, 3, 4).then((a) => {
 //   a.wait().then((b) => {
