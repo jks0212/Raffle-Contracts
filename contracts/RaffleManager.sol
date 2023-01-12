@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 
 import "contracts/Raffle.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract RaffleManager {
 
@@ -9,9 +10,10 @@ contract RaffleManager {
   Raffle[] private raffles;
   Raffle[] private endedRaffles;
 
-  struct SimpleNFT {
+  struct SimpleRaffle {
     address contractAddress;
     uint256 tokenId;
+    uint8 state;
   }
 
   struct RaffleDetail {
@@ -20,12 +22,15 @@ contract RaffleManager {
     address nftContract;
     uint256 nftTokenId;
     uint256 nftTokenType;
+    string nftName;
+    string nftSymbol;
+    string nftTokenURI;
     uint256 expiredAt;
     uint16 ticketCap;
     uint16 soldTickets;
-    uint32 ticketPrice;
-    uint8 ticketPricePointer;
+    uint256 ticketPrice;
     uint32 index;
+    uint8 state;
   }
 
   constructor() {
@@ -39,54 +44,58 @@ contract RaffleManager {
     uint256 nftTokenType,
     uint256 expiredAt, 
     uint16 ticketCap, 
-    uint32 ticketPrice,
-    uint8 ticketPricePointer,
+    uint256 ticketPrice,
     address raffleAddress
   );
 
   function createRaffle(
-    address raffleOwner,
+    // address raffleOwner,
     address nftContract,
     uint256 nftTokenId,
     uint256 nftTokenType,
     uint256 expiredAt,
     uint16 ticketCap,
-    uint32 ticketPrice,
-    uint8 ticketPricePointer
+    uint256 ticketPrice
   ) public {
     // require(nft.ownerOf(tokenId) == msg.sender, "This NFT is not owned by this wallet.");
     // require(vaultItems[tokenId].tokenId == 0, "Already listed.");
     // require(price > 0, "Listing price must be higher than 0.");
     // require(msg.value == listingFee, "Not enough fee.");
-
+    require(nftTokenType == 721, "Currently only ERC721 token is supported.");
     require(!doesRaffleAlreadyExist(nftContract, nftTokenId), "This NFT Raffle is already created.");
-    // for(uint i=0; i<raffles.length; i++) {
-    //   require(raffles[i].nftContract() != nftContract && raffles[i].nftTokenId() != nftTokenId, "This NFT Raffle is already created.");
-    // }
+
 
     Raffle raffle = new Raffle(
-      raffleOwner, 
+      // raffleOwner, 
+      msg.sender,
       nftContract, 
       nftTokenId, 
       nftTokenType, 
       expiredAt, 
       ticketCap, 
-      ticketPrice, 
-      ticketPricePointer
+      ticketPrice
     );
     raffles.push(raffle);
 
+    transferERC721(nftContract, msg.sender, address(raffle), nftTokenId);
+
     emit NFTRaffleCreated(
-      raffleOwner, 
+      // raffleOwner, 
+      msg.sender,
       nftContract, 
       nftTokenId, 
       nftTokenType, 
       expiredAt, 
       ticketCap, 
-      ticketPrice, 
-      ticketPricePointer,
+      ticketPrice,
       address(raffle)
     );
+  }
+
+  function transferERC721(address nft, address from, address to, uint256 tokenId) public payable {
+    IERC721 erc721 = IERC721(nft);
+    require(erc721.ownerOf(tokenId) == from, "You should be the owner of this NFT.");
+    erc721.transferFrom(from, to, tokenId);
   }
 
   function getRaffles() public view returns(Raffle[] memory) {
@@ -105,27 +114,36 @@ contract RaffleManager {
     
     RaffleDetail[] memory details = new RaffleDetail[](size);
     for(uint i=index; i<max; i++) {
-      details[i] = RaffleDetail(
-        raffles[i].owner(),
-        address(raffles[i]),
-        raffles[i].nftContract(),
-        raffles[i].nftTokenId(),
-        raffles[i].nftTokenType(),
-        raffles[i].expiredAt(),
-        raffles[i].ticketCap(),
-        raffles[i].getSoldTicketsNum(),
-        raffles[i].ticketPrice(),
-        raffles[i].ticketPricePointer(),
-        uint32(i)
-      );
+      uint256 tokenType = raffles[i].nftTokenType();
+      if(tokenType == 721){
+        string memory nftName;
+        string memory nftSymbol;
+        string memory nftTokenURI;
+        (nftName, nftSymbol, nftTokenURI) = raffles[i].getERC721Metadata();
+
+        details[i] = RaffleDetail(
+          raffles[i].owner(),
+          address(raffles[i]),
+          raffles[i].nftContract(),
+          raffles[i].nftTokenId(),
+          raffles[i].nftTokenType(),
+          nftName,
+          nftSymbol,
+          nftTokenURI,
+          raffles[i].expiredAt(),
+          raffles[i].ticketCap(),
+          raffles[i].getSoldTicketsNum(),
+          raffles[i].ticketPrice(),
+          uint32(i),
+          raffles[i].getStateNum()
+        );
+      } else if(tokenType == 1155) {
+
+      }
     }
 
     return details;
   }
-
-  function abs(int256 x) private pure returns (int256) {
-    return x >= 0 ? x : -x;
-}
 
   function doesRaffleAlreadyExist(address nftContract, uint256 nftTokenId) private view returns(bool) {
     for(uint i=0; i<raffles.length; i++) {
@@ -136,7 +154,7 @@ contract RaffleManager {
     }
   }
 
-  function getRaffleNFTsByOwner(address raffleOwner) public view returns(SimpleNFT[] memory) {
+  function getRaffleNFTsByOwner(address raffleOwner) public view returns(SimpleRaffle[] memory) {
     uint size = 0;
     for(uint i=0; i < raffles.length; i++) {
       if(raffles[i].owner() == raffleOwner) {
@@ -144,17 +162,20 @@ contract RaffleManager {
       }
     }
 
-    SimpleNFT[] memory nfts = new SimpleNFT[](size);
+    SimpleRaffle[] memory simpleRaffles = new SimpleRaffle[](size);
 
     uint k=0;
     for(uint i=0; i < raffles.length; i++) {
       if(raffles[i].owner() == raffleOwner) {
-        nfts[k++] = SimpleNFT(raffles[i].nftContract(), raffles[i].nftTokenId());
-        // ownerRaffles[k++] = raffles[i];
+        simpleRaffles[k++] = SimpleRaffle(
+          raffles[i].nftContract(), 
+          raffles[i].nftTokenId(),
+          raffles[i].getStateNum()
+        );
       }
     }
 
-    return nfts;
+    return simpleRaffles;
   }
 
   function getRaffleDetailsByOwner(address raffleOwner) public view returns(RaffleDetail[] memory) {
@@ -170,19 +191,32 @@ contract RaffleManager {
     uint k=0;
     for(uint i=0; i < raffles.length; i++) {
       if(raffles[i].owner() == raffleOwner) {
-        details[k++] = RaffleDetail(
-          raffles[i].owner(),
-          address(raffles[i]),
-          raffles[i].nftContract(),
-          raffles[i].nftTokenId(),
-          raffles[i].nftTokenType(),
-          raffles[i].expiredAt(),
-          raffles[i].ticketCap(),
-          raffles[i].getSoldTicketsNum(),
-          raffles[i].ticketPrice(),
-          raffles[i].ticketPricePointer(),
-          uint32(i)
-        );
+        uint256 tokenType = raffles[i].nftTokenType();
+        if(tokenType == 721){
+          string memory nftName;
+          string memory nftSymbol;
+          string memory nftTokenURI;
+          (nftName, nftSymbol, nftTokenURI) = raffles[i].getERC721Metadata();
+
+          details[k++] = RaffleDetail(
+            raffles[i].owner(),
+            address(raffles[i]),
+            raffles[i].nftContract(),
+            raffles[i].nftTokenId(),
+            raffles[i].nftTokenType(),
+            nftName,
+            nftSymbol,
+            nftTokenURI,
+            raffles[i].expiredAt(),
+            raffles[i].ticketCap(),
+            raffles[i].getSoldTicketsNum(),
+            raffles[i].ticketPrice(),
+            uint32(i),
+            raffles[i].getStateNum()
+          );
+        } else if(tokenType == 1155) {
+
+        }
       }
     }
 
@@ -199,18 +233,10 @@ contract RaffleManager {
     for (uint i = 0; i < raffles.length; i++) {
       if(raffles[i].expiredAt() <= block.timestamp) {
         // 만료된 래플 처리
-        closeRaffle();
+        // closeRaffle();
       }
     }
 
   }
-
-  // case1. winner가 정해졌을 때 -> 우리가 직접 winner에게 전송
-  // case2. winner가 없을 때 -> 각각의 참여자들에게 claim할 수 있게
-  function closeRaffle() public {
-
-  }
-
-  // mapping(uint256 => Raffle) raffleMap;
 
 }

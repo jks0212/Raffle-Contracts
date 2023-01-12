@@ -8,18 +8,16 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
+
 contract Raffle is IERC721Receiver, ReentrancyGuard{
 
   enum State {
     Ongoing,
+    Soldout,
     Timeout,
     Cancelled,
     Completed
   }
-
-  // 1 ETH
-  uint256 private listingFee = 1000000000000000000;
-
   State private state;
 
   address payable public owner;
@@ -28,14 +26,13 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
   uint256 public nftTokenType;
   uint256 public expiredAt;
   uint16 public ticketCap;
-  uint256 public ticketPrice;
+  uint32 public ticketPrice;
+  uint8 public ticketPricePointer;
 
-  uint256 private createdAt;
-
-  address private winner;
-
-  bool private didWinnerGetNft = false;
-  bool private didOwnerGetBalance = false;
+  // address payable private seller;
+  // address payable private owner;
+  // uint256 price;
+//   bool ended;
 
   struct Purchase {
     address purchaser;
@@ -53,7 +50,8 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
     uint256 _nftTokenType,
     uint256 _expiredAt,
     uint16 _ticketCap,
-    uint256 _ticketPrice
+    uint32 _ticketPrice,
+    uint8 _ticketPricePointer
   ) {
     owner = payable(_owner);
     nftContract = _nftContract;
@@ -62,31 +60,30 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
     expiredAt = _expiredAt;
     ticketCap = _ticketCap;
     ticketPrice = _ticketPrice;
-    createdAt = block.timestamp;
+    ticketPricePointer = _ticketPricePointer;
+
     state = State.Ongoing;
-  }
 
-  function transferERC721(address to) private {
+    transferERC721(owner, address(this), nftTokenId);
     // IERC721 erc721 = IERC721(nftContract);
-
-    // require(erc721.ownerOf(tokenId) == from, "You should be the owner of this NFT.");
-
-    // if(!erc721.isApprovedForAll(owner, address(this))) {
-    //   erc721.setApprovalForAll(address(this), true);
-    // }
-    IERC721(nftContract).transferFrom(address(this), to, nftTokenId);
+    // erc721.transferFrom(owner, address(this), nftTokenId);
   }
 
-  // function cancelRaffle(address _owner) public {
-  //   require(owner == _owner, "Only owner is able to cancel raffle.");
-  //   require(state == State.Ongoing, "This raffle is done.");
+  function transferERC721(address from, address to, uint256 tokenId) public payable {
+    IERC721 erc721 = IERC721(nftContract);
+    erc721.transferFrom(from, to, tokenId);
+    erc721.approve(to, tokenId); 
+  }
 
-  //   state = State.Cancelled;
+  function cancelRaffle(address _owner) public {
+    require(owner == _owner, "Only owner is able to cancel raffle.");
 
-  //   transferERC721(address(this), owner, nftTokenId);
+    state = State.Cancelled;
 
-  //   // TODO 토큰 구매자들에게 다 돌려주기
-  // }
+    transferERC721(address(this), owner, nftTokenId);
+
+    // TODO 토큰 구매자들에게 다 돌려주기
+  }
 
   function getRaffle() public view returns(
     address, 
@@ -98,7 +95,7 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
     string memory,
     uint256, 
     uint16, 
-    uint256, 
+    uint32, 
     uint8
   ) {
 
@@ -108,7 +105,7 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
     (nftName, nftSymbol, nftTokenURI) = getERC721Metadata();
 
     return(
-      owner,
+      owner, 
       nftContract, 
       nftTokenId, 
       nftTokenType, 
@@ -118,30 +115,8 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
       expiredAt, 
       ticketCap, 
       ticketPrice, 
-      getStateNum()
+      ticketPricePointer
     );
-  }
-
-  function getWinnerInfo() public view returns(address, bool) {
-    return (winner ,didWinnerGetNft);
-  }
-
-  function getOwnerInfo() public view returns(address, bool) {
-    return (owner, didOwnerGetBalance);
-  }
-
-  function getStateNum() public view returns(uint8) {
-    uint8 _state;
-    if(state == State.Ongoing) {
-      _state = 1;
-    } else if(state == State.Timeout) {
-      _state = 2;
-    } else if(state == State.Cancelled) {
-      _state = 3;
-    } else if(state == State.Completed) {
-      _state = 4;
-    }
-    return _state;
   }
 
   function getPurchases() public view returns(Purchase[] memory) {
@@ -171,6 +146,7 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
       return uri;
   }
 
+
   function onERC721Received(
     address,
     address from,
@@ -181,9 +157,9 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
     return IERC721Receiver.onERC721Received.selector;
   }
 
-  function purchaseTickets(uint16 tickets) public payable {
-    require(ticketPrice * uint256(tickets) == msg.value, "Sent cost doesn't fit.");
-    require(state == State.Ongoing, "This raffle is done.");
+  // 이더 전송 처리 부분 필요
+  function purchaseTickets(uint16 tickets, uint256 cost) public {
+    require(state == State.Ongoing, "Raffle state is not on sail");
 
     uint currentTicketCap = 0;
     for(uint i=0; i<purchases.length; i++) {
@@ -192,53 +168,14 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
 
     require(currentTicketCap + tickets <= ticketCap, "Purchaser's tickets are too many to join");
 
+    // purchases.push(Purchase(purchaser, timestamp, tickets));
     purchases.push(Purchase(msg.sender, block.timestamp, tickets));
 
     // 티켓 캡이 다 차면 마감 처리
     if(currentTicketCap + tickets == ticketCap) {
-      winner = chooseWinner();
-      state = State.Completed;
+      state = State.Soldout;
+      // closeRaffle();
     }
-  }
-
-  function chooseWinner() private view returns(address) {
-    uint256 ranNum = block.timestamp % ticketCap;
-
-    uint256 winPoint = 0;
-    address _winner;
-    for(uint i=0; i<purchases.length; i++) {
-      for(uint k=0; k<purchases[i].tickets; k++) {
-        if(winPoint == ranNum) {
-          _winner = purchases[i].purchaser;
-          break;
-        }
-        winPoint += 1;
-      }
-    }
-
-    return _winner;
-  }
-
-  function checkTimeout() public {
-    if(expiredAt < block.timestamp) {
-      state = State.Timeout;
-    }
-  }
-
-  function giveNftToWinner() public {
-    require(state == State.Completed, "Winner exists when raffle has been completed.");
-    require(msg.sender == winner, "Only winner can take NFT.");
-
-    transferERC721(winner);
-    didWinnerGetNft = true;
-  }
-
-  function giveAllBalanceToOwner() public payable {
-    require(state == State.Completed, "Raffle is not completed.");
-    require(msg.sender == owner, "Not owner.");
-
-    owner.transfer(address(this).balance);
-    didOwnerGetBalance = true;
   }
 
 }
