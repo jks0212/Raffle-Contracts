@@ -144,6 +144,10 @@ contract Raffle is IERC721Receiver, ReentrancyGuard{
     return _state;
   }
 
+  function isOngoing() public view returns(bool) {
+    
+  }
+
   function getPurchases() public view returns(Purchase[] memory) {
     return purchases;
   }

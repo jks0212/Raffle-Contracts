@@ -147,7 +147,9 @@ contract RaffleManager {
 
   function doesRaffleAlreadyExist(address nftContract, uint256 nftTokenId) private view returns(bool) {
     for(uint i=0; i<raffles.length; i++) {
-      if(raffles[i].nftContract() == nftContract && raffles[i].nftTokenId() == nftTokenId) {
+      if(raffles[i].nftContract() == nftContract 
+      && raffles[i].nftTokenId() == nftTokenId 
+      && raffles[i].isOngoing()) {
         return true;
       }
       return false;
